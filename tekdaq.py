@@ -40,6 +40,10 @@ tds = TDS3k(port)
 # Make the scope identify itself.
 
 
+vsca1=args.vsca1
+vsca2=args.vsca2
+hsamp=args.hsamp
+
 print(tds.identify())
 
 if not args.keep:
@@ -66,22 +70,37 @@ if not args.keep:
     tds.send_command("HOR:SCA "+args.hsamp)
     tds.send_command("HOR:TRIG:POS "+args.pretrigger)
 
+else:
+    temp=tds.send_query("HORIZONTAL")
+    hsamp=temp.split(';')[2]
     
-tds.send_command("HOR:RECORDLENGTH "+args.length)
+    vsca1=tds.send_query("CH1:SCALE")
+    vsca2=tds.send_query("CH2:SCALE")
 
 
 
-xmin=-5*float(args.hsamp)
-xmax=5*float(args.hsamp)
+tds.send_command("HOR:RECORDLENGTH "+args.length)    
+
+
+
+
+
+
+
+xmin=-5*float(hsamp)
+xmax=5*float(hsamp)
 
 
 ybase=0.0
 if args.wave == '1':
-    ybase=5.*float(args.vsca1)
+    ybase=5.*float(vsca1)
 elif args.wave == '2':
-    ybase=5.*float(args.vsca2)
+    ybase=5.*float(vsca2)
 elif args.wave == 'a':
-    ybase=max(5.*float(args.vsca2),5.*float(args.vsca1))
+    ybase=max(5.*float(vsca2),5.*float(vsca1))
+
+
+
     
 
 ymin=-1.*ybase
