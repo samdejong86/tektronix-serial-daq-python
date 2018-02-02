@@ -18,7 +18,7 @@ You will need to be able to access serial ports on your machine. This can be don
 
 or by adding yourself to the 'dialout' group on your machine:
 
-   usermod -a -G dialout <username>
+    usermod -a -G dialout <username>
 
 you will have to restart for this to take effect.
 
