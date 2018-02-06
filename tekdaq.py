@@ -209,6 +209,7 @@ def animate(i):
             xdat=[]
             ydat=[]
 
+            vectors[ch].clear()
             for x,y in data:
                 xdat.append(x)
                 ydat.append(y)
