@@ -1,5 +1,5 @@
 from serial import Serial
-from pytek import TDS3k
+from pytek.pytek import TDS3k
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
