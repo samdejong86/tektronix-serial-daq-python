@@ -9,7 +9,6 @@ DAQ software for Tektronix scope TDS 3052 scope, with RS 232 connection.
 These python libraries are required:
 
 * pyserial
-* pytek
 * matplotlib
 
 You will need to be able to access serial ports on your machine. This can be done by changing the permissions on /dev/tty<port> so that anyone chan change access them:

@@ -439,8 +439,8 @@ class TDS3k(Configurable):
         self.send_command("DATA:WIDTH", str(width))
         self.send_command("DATA:ENCDG", "RPBinary")
         self.send_command("WFMPRE:PT_Fmt", "Y")
-        self.send_command("DATA:START", str(start))
-        self.send_command("DATA:STOP", str(stop))
+        #self.send_command("DATA:START", str(start))
+        #self.send_command("DATA:STOP", str(stop))
 
         #Check how many points it's going to send.
         point_count = self.get_num_points()
@@ -448,7 +448,7 @@ class TDS3k(Configurable):
         start_time = time.time()
         self.send_command("CURVE?")
         data = self.get_response()
-
+        
         stop_time = time.time()
 
         #Strip trailing linebreak.
@@ -507,6 +507,8 @@ class TDS3k(Configurable):
         yzero = float(wfm["y_zero"])
 
         points = curve[1]
+        #print("hello")
+        #print(points)
         data = (
             (xzero + i*dx, ((points[i] - yoff) * ym) + yzero)
                 for i in range(len(points))

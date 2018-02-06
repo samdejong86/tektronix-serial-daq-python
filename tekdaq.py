@@ -46,6 +46,8 @@ hsamp=args.hsamp
 
 print(tds.identify())
 
+getdata = [False, False]
+
 if not args.keep:
     if args.wave == 'a' or args.wave =='1':
         tds.send_command("CH1:SCA "+args.vsca1)
@@ -77,10 +79,23 @@ else:
     vsca1=tds.send_query("CH1:SCALE")
     vsca2=tds.send_query("CH2:SCALE")
 
-
-
 tds.send_command("HOR:RECORDLENGTH "+args.length)    
 
+
+if args.wave == 'a' or args.wave =='1':
+    getdata[0]=True
+if args.wave == 'a' or args.wave =='2':
+    getdata[1]=True
+    
+
+Preambles = []
+
+for ch in range(2):
+    if getdata[ch]:
+        c1=tds.get_curve("CH"+str(ch+1))
+        Preambles.append(tds.get_waveform_preamble())
+    else:
+        Preambles.append(0)
 
 
 
@@ -100,7 +115,6 @@ elif args.wave == 'a':
     ybase=max(5.*float(vsca2),5.*float(vsca1))
 
 
-
     
 
 ymin=-1.*ybase
@@ -117,10 +131,6 @@ lobj = ax.plot([], [], 'r-', animated=True)[0]
 
 plotlays, plotcols, plotstyle, linw = [2], ["#DCBF73","#6E95B4"], ['', ''], [2,2]
 
-numPlots=1
-if args.wave=='a':
-    numPlots=2
-
 for index in range(2):
     lobj = ax.plot([],[],lw=linw[index], marker=plotstyle[index],color=plotcols[index])[0]
     lines.append(lobj)
@@ -129,7 +139,7 @@ for index in range(2):
 
 # initialization function: plot the background of each frame
 def init():
-    for i in range(numPlots):
+    for i in range(2):
         lines[i].set_data([],[])
     return lines
 
@@ -141,44 +151,29 @@ def animate(i):
 
     global numEvents
     numEvents = numEvents+1
-    
-    if args.wave != 'a':
-        xdat=[]
-        ydat=[]
-    
-        waveform = []
-        if args.wave == '1':
-            waveform = tds.get_waveform("CH1")
-        if args.wave == '2':
-            waveform = tds.get_waveform("CH2")
-                        
-        for x,y in waveform:
-            #print(str(x)+" "+str(y))
-            xdat.append(x)
-            ydat.append(y)
-        
-            
-        lines[0].set_data(xdat,ydat)         
 
-    else:
-        xdat=[]
-        ydat1=[]
-        ydat2=[]
-        waveform1=tds.get_waveform("CH1")
-        waveform2=tds.get_waveform("CH2")
-        
-        for x,y in waveform1:
-            xdat.append(x)
-            ydat1.append(y)
+    global Preambles;
 
-        for x,y in waveform2:
-            ydat2.append(y)
-            
-        lines[0].set_data(xdat, ydat1)
-        lines[1].set_data(xdat, ydat2)       
+    for ch in range(2):
+        if getdata[ch]:
+            curve = tds.get_curve("CH"+str(ch+1))
+            data = (
+                (float(Preambles[ch]["xzero"]) + i*float(Preambles[ch]["x_incr"]), ((curve[i] - float(Preambles[ch]["y_offset"])) * float(Preambles[ch]["y_scale"])) + float(Preambles[ch]["y_zero"]))
+                for i in range(len(curve))
+            )
 
-        
+            xdat=[]
+            ydat=[]
 
+            for x,y in data:
+                xdat.append(x)
+                ydat.append(y)
+                
+            lines[ch].set_data(xdat,ydat)     
+
+        else:
+            lines[ch].set_data(0,0)
+                
     return lines
 
 
@@ -193,7 +188,5 @@ anim = animation.FuncAnimation(fig, animate, init_func=init,
 plt.ylabel(tds.y_units())
 plt.xlabel(tds.x_units())
 plt.show()
-
-
 
 tds.close()
