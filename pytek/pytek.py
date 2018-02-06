@@ -370,6 +370,7 @@ class TDS3k(Configurable):
             [self.__WFM_PREAMBLE_FIELD_CONVERTERS[i](wfm[i]) for i in range(len(wfm))]
         ))
 
+    point_count=0
     def get_curve(self, source="CH1", double=True, start=1, stop=10000, preamble=False, timing=False):
         """
         Queries a curve (waveform) from the device and returns it as a set of data points. Note that the
@@ -442,15 +443,21 @@ class TDS3k(Configurable):
         #self.send_command("DATA:START", str(start))
         #self.send_command("DATA:STOP", str(stop))
 
-        #Check how many points it's going to send.
-        point_count = self.get_num_points()
+        #Check how many points it's going to send.        
+        global point_count
+
+        try:
+            point_count
+        except NameError:
+            point_count = self.get_num_points()
+                
         
         start_time = time.time()
         self.send_command("CURVE?")
         data = self.get_response()
         
         stop_time = time.time()
-
+        
         #Strip trailing linebreak.
         
         if(data[-1] == 0x0A):
@@ -523,6 +530,7 @@ class TDS3k(Configurable):
             return ret
         return data
 
+
     def get_num_points(self):
         """
         Queries the number of points that will be sent in a waveform or curve query,
@@ -533,8 +541,13 @@ class TDS3k(Configurable):
         on the device based on provided parameters, thereby effecting the number of
         points.
         """
-        return int(self.send_query("WFMPRE:NR_PT"))
-
+        a=self.send_query("WFMPRE:NR_PT")
+        if a != '':
+            point_count=a
+            return int(a)
+        else:
+            return int(point_count)
+        
     def y_units(self):
         """
         Returns a string giving the units of the Y axis based on the current waveform settings.

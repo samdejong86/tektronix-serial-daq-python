@@ -2,16 +2,25 @@ from serial import Serial
 from pytek.pytek import TDS3k
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from matplotlib.ticker import FormatStrFormatter
 
-
+import math
+import time
 import argparse
 import sys
+
+import ROOT as r
+from ROOT import TFile, TTree, AddressOf, gROOT
+import numpy as np
+
 
 parser = argparse.ArgumentParser("Read data from a Tektronix TDS 3052 oscilloscpe via an RS-232 port")
 parser.add_argument('-p','--port', help='The port to listen to', default="/dev/ttyUSB0", required=False)
 parser.add_argument('-r','--baudrate', help='baud rate of port', default=38400, required=False)
 
-parser.add_argument('-o','--output', help='Name of data file', default="tek.dat", required=False, metavar='FILE')
+parser.add_argument('-u','--unlock', help='Unlock front panel then exit', action='store_true', required=False)
+
+parser.add_argument('-o','--output', help='Name of data file', default="tek.root", required=False, metavar='FILE')
 parser.add_argument('-k','--keep', help='Keep existing scope settings, ignoring other command line arguments.', action='store_true', required=False)
 parser.add_argument('-w','--wave', help='Record waveform data for channel CH; specify \'a\' for all channels.', default='a', required=False, metavar='CH', choices=['a','1','2'])
 parser.add_argument('-l','--length', help='Specify the waveform recordlength; not independent of the time base. Allowed values are: 5.E2 and 1.E4', default='5.E2', required=False, choices=['5.E2', '1.E4'])
@@ -35,6 +44,11 @@ args = parser.parse_args()
 
 port = Serial(args.port, args.baudrate, timeout=1)
 tds = TDS3k(port)
+
+if args.unlock:
+    tds.send_command("LOC NONE")
+    exit()
+    
 
 
 # Make the scope identify itself.
@@ -98,7 +112,8 @@ for ch in range(2):
         Preambles.append(0)
 
 
-
+tds.send_command("LOC All")
+tds.send_command("ACQ:STOPA SEQ")
 
 
 
@@ -119,6 +134,25 @@ elif args.wave == 'a':
 
 ymin=-1.*ybase
 ymax=ybase
+
+f=TFile(args.output, 'recreate')
+t=TTree("data", "data")
+
+vectors=[]
+vectors.append(r.vector('double')())
+vectors.append(r.vector('double')())
+
+for ch in range(2):
+    if getdata[ch]:
+        t.Branch('ch'+str(ch+1), vectors[ch])
+
+        
+xinc = np.zeros(1, dtype=float)
+t.Branch('xinc', xinc, 'xinc/D')
+xinc[0]=float(Preambles[0]['x_incr'])
+
+        
+
     
     
 # First set up the figure, the axis, and the plot element we want to animate
@@ -126,7 +160,8 @@ fig = plt.figure()
 ax = plt.axes(xlim=(xmin, xmax), ylim=(ymin, ymax))
 lines = []
 lobj = ax.plot([], [], 'r-', animated=True)[0]
-
+ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+#ax.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
 
 plotlays, plotcols, plotstyle, linw = [2], ["#DCBF73","#6E95B4"], ['', ''], [2,2]
@@ -152,11 +187,16 @@ def animate(i):
     global numEvents
     numEvents = numEvents+1
 
+    global t
+    global vectors
+
     if i > numEvents:
         return lines
 
     global Preambles;
 
+    tds.send_command("ACQ:STATE ON")
+    
     for ch in range(2):
         if getdata[ch]:
             curve = tds.get_curve("CH"+str(ch+1))
@@ -165,15 +205,19 @@ def animate(i):
                 for i in range(len(curve))
             )
 
+            
             xdat=[]
             ydat=[]
 
             for x,y in data:
                 xdat.append(x)
                 ydat.append(y)
-                
+                vectors[ch].push_back(y)
+
             lines[ch].set_data(xdat,ydat)     
 
+            t.Fill()
+            
         else:
             lines[ch].set_data(0,0)
                 
@@ -191,5 +235,11 @@ anim = animation.FuncAnimation(fig, animate, init_func=init,
 plt.ylabel(tds.y_units())
 plt.xlabel(tds.x_units())
 plt.show()
+
+f.Write()
+f.Close()
+
+
+tds.send_command("LOC NONE")
 
 tds.close()
