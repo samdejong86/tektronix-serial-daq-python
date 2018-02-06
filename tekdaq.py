@@ -152,6 +152,9 @@ def animate(i):
     global numEvents
     numEvents = numEvents+1
 
+    if i > numEvents:
+        return lines
+
     global Preambles;
 
     for ch in range(2):
