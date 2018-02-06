@@ -10,6 +10,7 @@ These python libraries are required:
 
 * pyserial
 * matplotlib
+* pyroot
 
 You will need to be able to access serial ports on your machine. This can be done by changing the permissions on /dev/tty<port> so that anyone chan change access them:
 
