@@ -43,7 +43,7 @@ you will have to restart for this to take effect.
                             line arguments.
       -w CH, --wave CH      Record waveform data for channel CH; specify 'a' for
                             all channels.
-      -l {5.E2,1.E4}, --length {5.E2,1.E4}
+      -l LENGTH, --length LENGTH
                             Specify the waveform recordlength; not independent of
                             the time base. Allowed values are: 5.E2 and 1.E4
       -n NEVENTS, --nevents NEVENTS
