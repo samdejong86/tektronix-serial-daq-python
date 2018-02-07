@@ -10,7 +10,8 @@ These python libraries are required:
 
 * pyserial
 * matplotlib
-* pyroot
+
+pyroot is required for saving data, but not for displaying waveforms.
 
 You will need to be able to access serial ports on your machine. This can be done by changing the permissions on /dev/tty<port> so that anyone chan change access them:
 

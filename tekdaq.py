@@ -9,8 +9,15 @@ import time
 import argparse
 import sys
 
-import ROOT as r
-from ROOT import TFile, TTree, AddressOf, gROOT
+
+rootExists=True
+try:
+    import ROOT as r
+    from ROOT import TFile, TTree, AddressOf, gROOT
+except ModuleNotFoundError:
+    print("Root not found. No data will be saved")
+    rootExists=False
+
 import numpy as np
 
 #parse command line arguments
@@ -18,11 +25,13 @@ parser = argparse.ArgumentParser("Read data from a Tektronix TDS 3052 oscilloscp
 parser.add_argument('-p','--port', help='The port to listen to', default="/dev/ttyUSB0", required=False)
 parser.add_argument('-r','--baudrate', help='baud rate of port', default=38400, required=False)
 parser.add_argument('-u','--unlock', help='Unlock front panel then exit', action='store_true', required=False)
-parser.add_argument('-o','--output', help='Name of data file', default="tek.root", required=False, metavar='FILE')
+if rootExists:
+    parser.add_argument('-o','--output', help='Name of data file', default="tek.root", required=False, metavar='FILE')
+    parser.add_argument('-n','--nevents', help='Number of events to record', default='10', required=False)
+
 parser.add_argument('-k','--keep', help='Keep existing scope settings, ignoring other command line arguments.', action='store_true', required=False)
 parser.add_argument('-w','--wave', help='Record waveform data for channel CH; specify \'a\' for all channels.', default='a', required=False, metavar='CH', choices=['a','1','2'])
 parser.add_argument('-l','--length', help='Specify the waveform recordlength; not independent of the time base. Allowed values are: 5.E2 and 1.E4', default='5.E2', required=False, choices=['5.E2', '1.E4'])
-parser.add_argument('-n','--nevents', help='Number of events to record', default='10', required=False)
 parser.add_argument('-c', '--trsrc', help='Specify the trigger channel; specify \'0\' for \'EXT\'', default='1', required=False, metavar='CH', choices=['0','1','2'])
 parser.add_argument('-t','--trlevel', help='Specify trigger level (in volts).', default='1E0', required=False, metavar='TRIG_LEVEL')
 parser.add_argument('-s', '--trslope', help='Specify the trigger edge slope - FALL or RISE.', default='RISE', required=False, metavar='TRIG_SLOPE', choices=['RISE','FALL'])
@@ -116,24 +125,28 @@ for ch in range(2):
 tds.send_command("LOC All")
 tds.send_command("ACQ:STOPA SEQ")
 
-#open root file
-f=TFile(args.output, 'recreate')
-t=TTree("data", "data")
 
-#create vectors
 vectors=[]
-vectors.append(r.vector('double')())
-vectors.append(r.vector('double')())
-
-#assign branches
-for ch in range(2):
-    if getdata[ch]:
-        t.Branch('ch'+str(ch+1), vectors[ch])
-
-#assign xincrement branch
+f=""
+t=""
 xinc = np.zeros(1, dtype=float)
-t.Branch('xinc', xinc, 'xinc/D')
-xinc[0]=float(Preambles[0]['x_incr'])
+
+if rootExists:
+    f=TFile(args.output, 'recreate')
+    t=TTree("data", "data")
+
+    #create vectors
+    vectors.append(r.vector('double')())
+    vectors.append(r.vector('double')())
+
+    #assign branches
+    for ch in range(2):
+        if getdata[ch]:
+            t.Branch('ch'+str(ch+1), vectors[ch])
+            
+    #assign xincrement branch
+    t.Branch('xinc', xinc, 'xinc/D')
+    xinc[0]=float(Preambles[0]['x_incr'])
 
 
 
@@ -180,8 +193,11 @@ def init():
 
 # close the scope and file
 def finished():
-    f.Write()
-    f.Close()
+    global rootExists
+
+    if rootExists:
+        f.Write()
+        f.Close()
     
     tds.send_command("LOC NONE")
     
@@ -194,11 +210,13 @@ numEvents=0
 # animation function.  This is called sequentially
 def animate(i):
     global numEvents
+    global rootExists
 
 
     # exit on end of run
-    if numEvents >= int(args.nevents):
-        finished()
+    if rootExists:
+        if numEvents >= int(args.nevents):
+            finished()
     
     numEvents = numEvents+1
 
@@ -225,11 +243,13 @@ def animate(i):
             ydat=[]
 
             #add data to graph and root file
-            vectors[ch].clear()
+            if rootExists:
+                vectors[ch].clear()
             for x,y in data:
                 xdat.append(x)
                 ydat.append(y)
-                vectors[ch].push_back(y)
+                if rootExists:
+                    vectors[ch].push_back(y)
 
             lines[ch].set_data(xdat,ydat)     
 
@@ -237,8 +257,9 @@ def animate(i):
         else:
             lines[ch].set_data(0,0)
 
-    #fill ttree
-    t.Fill()    
+    if rootExists:
+        #fill ttree
+        t.Fill()    
     return lines
 
 
@@ -246,7 +267,7 @@ def animate(i):
 
 # call the animator.  blit=True means only re-draw the parts that have changed.
 anim = animation.FuncAnimation(fig, animate, init_func=init,
-                               frames=int(args.nevents), interval=20, blit=True)
+                               frames=20, interval=20, blit=True)
 
 
 
