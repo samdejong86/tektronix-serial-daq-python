@@ -6,19 +6,21 @@ from matplotlib.ticker import FormatStrFormatter
 
 import math
 import time
-import argparse
 import sys
 
 
 rootExists=True
+
 try:
     import ROOT as r
-    from ROOT import TFile, TTree, AddressOf, gROOT
+    r.PyConfig.IgnoreCommandLineOptions = True
+    from ROOT import TFile, TTree
 except ModuleNotFoundError:
     print("Root not found. No data will be saved")
     rootExists=False
-
+    
 import numpy as np
+import argparse
 
 #parse command line arguments
 parser = argparse.ArgumentParser("Read data from a Tektronix TDS 3052 oscilloscpe via an RS-232 port")
