@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from serial import Serial
 import visa
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -19,21 +18,23 @@ try:
     r.PyConfig.IgnoreCommandLineOptions = True
     from ROOT import TFile, TTree
 except ModuleNotFoundError:
-    print("Root not found. No data will be saved")
     rootExists=False
     
 import numpy as np
 import argparse
+
+defaultFile="tek.dat"
+if rootExists:
+    defaultFile="tek.root"
 
 #parse command line arguments
 parser = argparse.ArgumentParser("Read data from a Tektronix TDS 3052 oscilloscpe via an RS-232 port")
 parser.add_argument('-p','--port', help='The port to listen to', default="/dev/ttyUSB0", required=False)
 parser.add_argument('-r','--baudrate', help='baud rate of port', default=38400, required=False)
 parser.add_argument('-u','--unlock', help='Unlock front panel then exit', action='store_true', required=False)
-if rootExists:
-    parser.add_argument('-o','--output', help='Name of data file', default="tek.root", required=False, metavar='FILE')
-
-parser.add_argument('-n','--nevents', help='Number of events to record', default=-1, required=False)
+parser.add_argument('--nosave', help="Don't save data", action='store_true', required=False)
+parser.add_argument('-o','--output', help='Name of data file', default=defaultFile, required=False, metavar='FILE')
+parser.add_argument('-n','--nevents', help='Number of events to record. If none specified, runs until closed.', default=-1, required=False)
 parser.add_argument('-k','--keep', help='Keep existing scope settings, ignoring other command line arguments.', action='store_true', required=False)
 parser.add_argument('-w','--wave', help='Record waveform data for channel CH; specify \'a\' for all channels.', default='a', required=False, metavar='CH', choices=['a','1','2'])
 parser.add_argument('-l','--length', help='Specify the waveform recordlength; not independent of the time base. Allowed values are: 5.E2 and 1.E4', default='5.E2', required=False, choices=['5.E2', '1.E4'], metavar="LENGTH")
@@ -52,10 +53,19 @@ parser.add_argument('-pt','--pretrigger', help='Specify the amount of pretrigger
 
 args = parser.parse_args()
 
+if not rootExists:
+    print("Root not found. Data will be saved as text files")
+
+#open up the visa manager
 rm = visa.ResourceManager('@py')
 
-tds = rm.open_resource('ASRL/dev/ttyUSB0::INSTR')
+#connect to scope
+tds = rm.open_resource('ASRL'+args.port+'::INSTR')
 
+#set the baud rate
+tds.baud_rate = int(args.baudrate)
+
+splitFilename=args.output.split(".")
 
 
 #unlock the scope if requested
@@ -74,8 +84,6 @@ vsca2=args.vsca2
 hsamp=args.hsamp
 
 getdata = [False, False]
-
-
 
 #apply settings if '-k' setting not used
 if not args.keep:
@@ -129,7 +137,7 @@ if args.wave == 'a' or args.wave =='2':
 
 
 Preambles = []
-#get the waveform preablmes
+
 tds.write("HEADER OFF");
 
 WFM_PREAMBLE_FIELDS = (
@@ -153,6 +161,8 @@ WFM_PREAMBLE_FIELDS = (
 WFM_PREAMBLE_FIELD_NAMES = tuple(f[0] for f in WFM_PREAMBLE_FIELDS)
 WFM_PREAMBLE_FIELD_CONVERTERS = tuple(f[1] for f in WFM_PREAMBLE_FIELDS)
 
+
+#get the waveform preablmes
 for ch in range(2):
     if getdata[ch]:
         tds.write("DATA:SOURCE CH"+str(ch+1))
@@ -185,7 +195,8 @@ f=""
 t=""
 xinc = np.zeros(1, dtype=float)
 
-if rootExists:
+#setup root saving
+if rootExists and not args.nosave:
     f=TFile(args.output, 'recreate')
     t=TTree("data", "data")
 
@@ -201,7 +212,7 @@ if rootExists:
     #assign xincrement branch
     t.Branch('xinc', xinc, 'xinc/D')
     xinc[0]=float(Preambles[0]['x_incr'])
-
+    
 
 
 
@@ -249,7 +260,7 @@ def init():
 def finished():
     global rootExists
 
-    if rootExists:
+    if rootExists and not args.nosave:
         f.Write()
         f.Close()
     
@@ -258,6 +269,48 @@ def finished():
     tds.close()
     exit()
 
+
+    
+#write an event to file
+def writeEvent(lines=[]):
+
+    global numEvents
+
+    #root file writing
+    if rootExists:
+        for ch in range(2):
+            if getdata[ch]:
+                vectors[ch].clear()
+                x,data=lines[ch].get_data()
+                for pt in data:
+                    vectors[ch].push_back(pt)
+        t.Fill()
+
+    #text file writing
+    else:
+        x1,ch1=lines[0].get_data()
+        x2,ch2=lines[1].get_data()
+
+        try:
+            l=len(x1)
+            x=x1
+        except TypeError:
+            l=len(x2)
+            x=x2
+
+        
+        with open(splitFilename[0]+"_"+str(numEvents)+"."+splitFilename[1], 'w') as f:
+            for i in range(l):
+                f.write('{:0.3e}'.format(x[i]))
+                if getdata[0]:
+                    f.write("\t"+"{0:.9f}".format(round(ch1[i],9)))
+                
+                if getdata[1]:
+                    f.write("\t"+"{0:.9f}".format(round(ch2[i],9))+"\n")
+                else:
+                    f.write("\n")
+                    
+                
 
 numEvents=0
 
@@ -281,8 +334,7 @@ def animate(i):
     #set acquire state
     tds.write("ACQ:STATE ON")
 
-    
-
+  
     #get curves
     for ch in range(2):
         if getdata[ch]:
@@ -300,22 +352,17 @@ def animate(i):
             ydat=[]
 
             #add data to graph and root file
-            if rootExists:
-                vectors[ch].clear()
             for x,y in waveform:
                 xdat.append(x)
                 ydat.append(y)
-                if rootExists:
-                    vectors[ch].push_back(y)
 
             lines[ch].set_data(xdat,ydat)  
         else:
             lines[ch].set_data(0,0)
 
-    if rootExists:
-        #fill ttree
-        t.Fill()
-        
+    
+    if not args.nosave:
+        writeEvent(lines)
     return lines
 
 

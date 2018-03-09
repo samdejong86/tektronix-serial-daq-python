@@ -8,10 +8,15 @@ DAQ software for Tektronix scope TDS 3052 scope, with RS 232 connection.
 
 These python libraries are required:
 
-* pyserial
+* pyvisa
 * matplotlib
 
-pyroot is required for saving data, but not for displaying waveforms.
+To install pyvisa with the backend, use
+
+    pip install pyvisa-py
+ 
+
+If pyroot is installed, data will be saved to root files. If not, data will be saved as text files
 
 You will need to be able to access serial ports on your machine. This can be done by changing the permissions on /dev/tty<port> so that anyone chan change access them:
 
@@ -19,7 +24,7 @@ You will need to be able to access serial ports on your machine. This can be don
 
 or by adding yourself to the 'dialout' group on your machine:
 
-    usermod -a -G dialout <username>
+    sudo usermod -a -G dialout <username>
 
 you will have to restart for this to take effect.
 
@@ -27,16 +32,18 @@ you will have to restart for this to take effect.
 ## Usage
 
     usage: Read data from a Tektronix TDS 3052 oscilloscpe via an RS-232 port
-           [-h] [-p PORT] [-r BAUDRATE] [-o FILE] [-k] [-w CH] [-l {5.E2,1.E4}]
-           [-n NEVENTS] [-c CH] [-t TRIG_LEVEL] [-s TRIG_SLOPE] [--vsca1 VSCALE]
-           [--vsca2 VSCALE] [--coupl1 COUPL] [--coupl2 COUPL] [--imped1 IMPED]
-           [--imped2 IMPED] [-b HSAMP] [-pt PRETRIGGER]
+           [-h] [-p PORT] [-r BAUDRATE] [-u] [--nosave] [-o FILE] [-n NEVENTS]
+           [-k] [-w CH] [-l LENGTH] [-c CH] [-t TRIG_LEVEL] [-s TRIG_SLOPE]
+           [--vsca1 VSCALE] [--vsca2 VSCALE] [--coupl1 COUPL] [--coupl2 COUPL]
+           [--imped1 IMPED] [--imped2 IMPED] [-b HSAMP] [-pt PRETRIGGER]
 
     optional arguments:
       -h, --help            show this help message and exit
       -p PORT, --port PORT  The port to listen to
       -r BAUDRATE, --baudrate BAUDRATE
                             baud rate of port
+      -u, --unlock          Unlock front panel then exit
+      --nosave              Don't save data
       -o FILE, --output FILE
                             Name of data file
       -k, --keep            Keep existing scope settings, ignoring other command
@@ -68,6 +75,3 @@ you will have to restart for this to take effect.
       	  	            Specify the amount of pretrigger (percent).
 
 
-## Acknowledgements
-
-Thanks to Brian Mearns, who created the pytek package for communicating with Tektronix 'scopes via serial.
