@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from serial import Serial
 from pytek.pytek import TDS3k
 import matplotlib.pyplot as plt
