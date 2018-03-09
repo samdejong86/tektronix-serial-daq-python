@@ -1,5 +1,4 @@
 
-
 void draw(TString file, int ch, int event){
 
   TFile *f = new TFile(file);
