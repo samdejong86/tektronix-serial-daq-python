@@ -48,6 +48,7 @@ parser.add_argument('--imped2', help='Specify impedance for channel 2.',  defaul
 parser.add_argument('-b','--hsamp', help='Specify the horizontal scale (in seconds); note that this can effect the sample rate.', default='20.E-9', required=False)
 parser.add_argument('-pt','--pretrigger', help='Specify the amount of pretrigger (percent).', default='20', required=False)
 
+print("blah")
 
 args = parser.parse_args()
 
