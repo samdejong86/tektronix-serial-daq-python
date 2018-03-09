@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from serial import Serial
-from pytek.pytek import TDS3k
+import visa
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.ticker import FormatStrFormatter
@@ -10,6 +10,7 @@ import math
 import time
 import sys
 
+#import scopeMethods
 
 rootExists=True
 
@@ -48,24 +49,24 @@ parser.add_argument('--imped2', help='Specify impedance for channel 2.',  defaul
 parser.add_argument('-b','--hsamp', help='Specify the horizontal scale (in seconds); note that this can effect the sample rate.', default='20.E-9', required=False)
 parser.add_argument('-pt','--pretrigger', help='Specify the amount of pretrigger (percent).', default='20', required=False)
 
-print("blah")
 
 args = parser.parse_args()
 
-#open the serial port
-port = Serial(args.port, args.baudrate, timeout=1)
-#connect to pytek
-tds = TDS3k(port)
+rm = visa.ResourceManager('@py')
+
+tds = rm.open_resource('ASRL/dev/ttyUSB0::INSTR')
+
+
 
 #unlock the scope if requested
 if args.unlock:
-    tds.send_command("LOC NONE")
+    tds.write("LOC NONE")
     exit()
     
 
 
 # Make the scope identify itself.
-print(tds.identify())
+print(tds.query('*IDN?'))
 
 
 vsca1=args.vsca1
@@ -74,61 +75,111 @@ hsamp=args.hsamp
 
 getdata = [False, False]
 
+
+
 #apply settings if '-k' setting not used
 if not args.keep:
     if args.wave == 'a' or args.wave =='1':
-        tds.send_command("CH1:SCA "+args.vsca1)
-        tds.send_command("CH1:COUPL "+args.coupl1)
-        tds.send_command("CH1:IMPED "+args.imped1)
-        tds.send_command("SEL:CH1 ON")
+        tds.write("CH1:SCA "+args.vsca1)
+        tds.write("CH1:COUPL "+args.coupl1)
+        tds.write("CH1:IMPED "+args.imped1)
+        tds.write("SEL:CH1 ON")
     
     if args.wave == 'a' or args.wave =='2':
-        tds.send_command("CH2:SCA "+args.vsca2)
-        tds.send_command("CH2:COUPL "+args.coupl2)
-        tds.send_command("CH2:IMPED "+args.imped2)
-        tds.send_command("SEL:CH2 ON")
+        tds.write("CH2:SCA "+args.vsca2)
+        tds.write("CH2:COUPL "+args.coupl2)
+        tds.write("CH2:IMPED "+args.imped2)
+        tds.write("SEL:CH2 ON")
 
         
-    tds.send_command("TRIGGER:A:LEVEL -1.E-2")
+    tds.write("TRIGGER:A:LEVEL -1.E-2")
     if args.trsrc == '0':
-        tds.send_command("TRIG:A:EDGE:SOU EXT")
+        tds.write("TRIG:A:EDGE:SOU EXT")
     else:    
-        tds.send_command("TRIG:A:EDGE:SOU CH"+args.trsrc)
-    tds.send_command("TRIG:A:EDGE:SLO "+args.trslope)
+        tds.write("TRIG:A:EDGE:SOU CH"+args.trsrc)
+    tds.write("TRIG:A:EDGE:SLO "+args.trslope)
         
-    tds.send_command("HOR:SCA "+args.hsamp)
-    tds.send_command("HOR:TRIG:POS "+args.pretrigger)
+    tds.write("HOR:SCA "+args.hsamp)
+    tds.write("HOR:TRIG:POS "+args.pretrigger)
 
     
 else: #if '-k' used, get the horizontal and vertical scale
-    temp=tds.send_query("HORIZONTAL")
-    hsamp=temp.split(';')[2]
-    
-    vsca1=tds.send_query("CH1:SCALE")
-    vsca2=tds.send_query("CH2:SCALE")
 
-tds.send_command("HOR:RECORDLENGTH "+args.length)    
+    
+    tds.write("HORIZONTAL?")
+    temp=tds.read()
+    hsamp=temp.split(';')[2]
+
+    tds.write("CH1:SCALE?")
+    vsca1=tds.read()
+    tds.write("CH2:SCALE?")
+    vsca2=tds.read()
+
+    
+
+    
+tds.write("HOR:RECORDLENGTH "+args.length)    
+
 
 #set the waveform flags
 if args.wave == 'a' or args.wave =='1':
     getdata[0]=True
 if args.wave == 'a' or args.wave =='2':
     getdata[1]=True
-    
+
 
 Preambles = []
 #get the waveform preablmes
+tds.write("HEADER OFF");
+
+WFM_PREAMBLE_FIELDS = (
+            ('bytes_per_sample', int,),
+            ('bits_per_sample', int,),
+            ('encoding', str,),
+            ('binary_format', str,),
+            ('byte_order', str,),
+            ('number_of_points', int,),
+            ('waveform_id', str,),
+            ('point_format', str,),
+            ('x_incr', float,),
+            ('pt_offset', int,),
+            ('xzero', float,),
+            ('x_units', str,),
+            ('y_scale', float,),
+            ('y_zero', float,),
+            ('y_offset', float,),
+            ('y_unit', str,),
+    )
+WFM_PREAMBLE_FIELD_NAMES = tuple(f[0] for f in WFM_PREAMBLE_FIELDS)
+WFM_PREAMBLE_FIELD_CONVERTERS = tuple(f[1] for f in WFM_PREAMBLE_FIELDS)
+
 for ch in range(2):
     if getdata[ch]:
-        c1=tds.get_curve("CH"+str(ch+1))
-        Preambles.append(tds.get_waveform_preamble())
+        tds.write("DATA:SOURCE CH"+str(ch+1))
+        tds.write("DATA:WIDTH 2")
+        tds.write("ENCDG RPBinary")
+        tds.write("WDMPRE:PT_Fmt Y")
+
+        tds.write("WFMPRE?")
+        wfm = tds.read().split(';')
+        pre =dict(zip(
+            WFM_PREAMBLE_FIELD_NAMES,
+            [WFM_PREAMBLE_FIELD_CONVERTERS[i](wfm[i]) for i in range(len(wfm))]
+        ))
+        print(pre)
+        #c1=tds.get_curve("CH"+str(ch+1))
+        Preambles.append(pre)
     else:
         Preambles.append(0)
 
 
+tds.write("WFMPRE:NR_PT?")
+point_count = int(tds.read())
+          
+        
 #lock the 'scope, set to single seq mode
-tds.send_command("LOC All")
-tds.send_command("ACQ:STOPA SEQ")
+tds.write("LOC All")
+tds.write("ACQ:STOPA SEQ")
 
 
 vectors=[]
@@ -204,7 +255,7 @@ def finished():
         f.Write()
         f.Close()
     
-    tds.send_command("LOC NONE")
+    tds.write("LOC NONE")
     
     tds.close()
     exit()
@@ -230,18 +281,58 @@ def animate(i):
     global Preambles
 
     #set acquire state
-    tds.send_command("ACQ:STATE ON")
+    tds.write("ACQ:STATE ON")
 
     #get curves
     for ch in range(2):
         if getdata[ch]:
-            #get curve
-            curve = tds.get_curve("CH"+str(ch+1))
+            tds.write("CURVE?")
+            data=tds.read()
+            #tds.write("*WAI")
+
+            #curve = tds.query_binary_values('CURVE?', datatype='B', is_big_endian=True)
+            #curve = tds.query_ascii_values('CURV?', converter='o')
+
+                     
+            print(len(data))
+            
+            
+            if(data[-1] == 0x0A):
+                data = data[:-1]
+
+            global point_count
+
+            length = len(data)
+            preamble_len = length - 2*point_count
+            preamble_data = data[:preamble_len]
+
+                       
+            
+            #print(data)
+
+            curve=[]
+            for j in range(preamble_len, len(data), 2):
+                #print(j)
+                msB=int.from_bytes(data[j].encode(), byteorder='big')
+                lsB=int.from_bytes(data[j+1].encode(), byteorder='big')
+                #print(str(msB)+" "+str(lsB.encode()))
+                curve.append(msB << 8 | lsB)
+
+
+            print(curve)
+            """
+
+            
+           
+           
             #use waveform header to convert ADC counts to volts
-            data = (
+            waveform = (
                 (float(Preambles[ch]["xzero"]) + i*float(Preambles[ch]["x_incr"]), ((curve[i] - float(Preambles[ch]["y_offset"])) * float(Preambles[ch]["y_scale"])) + float(Preambles[ch]["y_zero"]))
                 for i in range(len(curve))
             )
+            print(ch)
+            print(max(waveform))
+            print(min(waveform))
 
             
             xdat=[]
@@ -250,16 +341,15 @@ def animate(i):
             #add data to graph and root file
             if rootExists:
                 vectors[ch].clear()
-            for x,y in data:
+            for x,y in waveform:
                 xdat.append(x)
                 ydat.append(y)
                 if rootExists:
                     vectors[ch].push_back(y)
 
-            lines[ch].set_data(xdat,ydat)     
-
-            
+            lines[ch].set_data(xdat,ydat)  
         else:
+            """
             lines[ch].set_data(0,0)
 
     if rootExists:
@@ -276,10 +366,11 @@ anim = animation.FuncAnimation(fig, animate, init_func=init,
 
 
 
-plt.ylabel(tds.y_units())
-plt.xlabel(tds.x_units())
+#plt.ylabel(tds.y_units())
+#plt.xlabel(tds.x_units())
 plt.show()
 
-
-
 finished()
+
+
+
