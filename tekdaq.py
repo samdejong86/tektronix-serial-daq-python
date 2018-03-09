@@ -32,8 +32,8 @@ parser.add_argument('-r','--baudrate', help='baud rate of port', default=38400, 
 parser.add_argument('-u','--unlock', help='Unlock front panel then exit', action='store_true', required=False)
 if rootExists:
     parser.add_argument('-o','--output', help='Name of data file', default="tek.root", required=False, metavar='FILE')
-    parser.add_argument('-n','--nevents', help='Number of events to record', default='10', required=False)
 
+parser.add_argument('-n','--nevents', help='Number of events to record', default=-1, required=False)
 parser.add_argument('-k','--keep', help='Keep existing scope settings, ignoring other command line arguments.', action='store_true', required=False)
 parser.add_argument('-w','--wave', help='Record waveform data for channel CH; specify \'a\' for all channels.', default='a', required=False, metavar='CH', choices=['a','1','2'])
 parser.add_argument('-l','--length', help='Specify the waveform recordlength; not independent of the time base. Allowed values are: 5.E2 and 1.E4', default='5.E2', required=False, choices=['5.E2', '1.E4'], metavar="LENGTH")
@@ -166,8 +166,6 @@ for ch in range(2):
             WFM_PREAMBLE_FIELD_NAMES,
             [WFM_PREAMBLE_FIELD_CONVERTERS[i](wfm[i]) for i in range(len(wfm))]
         ))
-        print(pre)
-        #c1=tds.get_curve("CH"+str(ch+1))
         Preambles.append(pre)
     else:
         Preambles.append(0)
@@ -270,7 +268,7 @@ def animate(i):
 
 
     # exit on end of run
-    if rootExists:
+    if int(args.nevents)!=-1:
         if numEvents >= int(args.nevents):
             finished()
     
@@ -283,57 +281,20 @@ def animate(i):
     #set acquire state
     tds.write("ACQ:STATE ON")
 
+    
+
     #get curves
     for ch in range(2):
         if getdata[ch]:
-            tds.write("CURVE?")
-            data=tds.read()
-            #tds.write("*WAI")
-
-            #curve = tds.query_binary_values('CURVE?', datatype='B', is_big_endian=True)
-            #curve = tds.query_ascii_values('CURV?', converter='o')
-
-                     
-            print(len(data))
+            tds.write("DATA:SOURCE CH"+str(ch+1))
             
-            
-            if(data[-1] == 0x0A):
-                data = data[:-1]
-
-            global point_count
-
-            length = len(data)
-            preamble_len = length - 2*point_count
-            preamble_data = data[:preamble_len]
-
-                       
-            
-            #print(data)
-
-            curve=[]
-            for j in range(preamble_len, len(data), 2):
-                #print(j)
-                msB=int.from_bytes(data[j].encode(), byteorder='big')
-                lsB=int.from_bytes(data[j+1].encode(), byteorder='big')
-                #print(str(msB)+" "+str(lsB.encode()))
-                curve.append(msB << 8 | lsB)
-
-
-            print(curve)
-            """
-
-            
-           
-           
+            curve = tds.query_binary_values('CURVE?', datatype='H', is_big_endian=True)
+                
             #use waveform header to convert ADC counts to volts
             waveform = (
                 (float(Preambles[ch]["xzero"]) + i*float(Preambles[ch]["x_incr"]), ((curve[i] - float(Preambles[ch]["y_offset"])) * float(Preambles[ch]["y_scale"])) + float(Preambles[ch]["y_zero"]))
                 for i in range(len(curve))
             )
-            print(ch)
-            print(max(waveform))
-            print(min(waveform))
-
             
             xdat=[]
             ydat=[]
@@ -349,12 +310,12 @@ def animate(i):
 
             lines[ch].set_data(xdat,ydat)  
         else:
-            """
             lines[ch].set_data(0,0)
 
     if rootExists:
         #fill ttree
-        t.Fill()    
+        t.Fill()
+        
     return lines
 
 
@@ -365,9 +326,12 @@ anim = animation.FuncAnimation(fig, animate, init_func=init,
                                frames=20, interval=20, blit=True)
 
 
+tds.write("WFMPRE:XUNIT?")
+plt.xlabel(tds.read()[1])
 
-#plt.ylabel(tds.y_units())
-#plt.xlabel(tds.x_units())
+tds.write("WFMPRE:YUNIT?")
+plt.ylabel(tds.read()[1])
+
 plt.show()
 
 finished()
