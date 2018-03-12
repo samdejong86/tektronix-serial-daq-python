@@ -396,9 +396,10 @@ def animate(i):
         writeEvent(lines)
 
     for k in range(2):
-        tme,data=lines[k].get_data()
-        tme = [float(closestPowerInv)*x for x in tme]
-        lines[k].set_data(tme,data)
+        if getdata[k]:
+            tme,data=lines[k].get_data()
+            tme = [float(closestPowerInv)*x for x in tme]
+            lines[k].set_data(tme,data)
         
         
     return lines
