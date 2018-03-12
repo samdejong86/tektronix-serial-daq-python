@@ -129,15 +129,17 @@ else: #if '-k' used, get the horizontal and vertical scale
     tds.write("CH2:SCALE?")
     vsca2=tds.read()
 
-   
+    
 tds.write("HOR:RECORDLENGTH "+args.length)    
 
 
 #set the waveform flags
 if args.wave == 'a' or args.wave =='1':
+    tds.write("SEL:CH1 ON")
     getdata[0]=True
 if args.wave == 'a' or args.wave =='2':
     getdata[1]=True
+    tds.write("SEL:CH2 ON")
 
 
 
@@ -184,9 +186,6 @@ for ch in range(2):
     else:
         Preambles.append(0)
 
-
-tds.write("WFMPRE:NR_PT?")
-point_count = int(tds.read())
                   
 #lock the 'scope, set to single seq mode
 tds.write("LOC All")
@@ -257,7 +256,6 @@ ymin=-1.*ybase
 ymax=ybase
 
     
-    
 # First set up the figure, the axis, and the plot element we want to animate
 fig = plt.figure()
 fig.canvas.set_window_title('Waveform from Tektronix 3052') 
@@ -284,14 +282,17 @@ def init():
 # close the scope and file
 def finished():
     global rootExists
+    global numEvents
 
     if rootExists and not args.nosave:
         f.Write()
         f.Close()
     
-    tds.write("LOC NONE")
-    
+    tds.write("LOC NONE")    
     tds.close()
+
+    print("Wrote "+str(numEvents)+" events to "+args.output)
+    
     exit()
 
 
@@ -343,7 +344,6 @@ numEvents=0
 def animate(i):
     global numEvents
     global rootExists
-
 
     # exit on end of run
     if int(args.nevents)!=-1:
