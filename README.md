@@ -10,6 +10,7 @@ These python libraries are required:
 
 * pyvisa
 * matplotlib
+* numpy
 
 To install pyvisa with the backend, use
 
@@ -30,6 +31,8 @@ you will have to restart for this to take effect.
 
 
 ## Usage
+
+![alt text](img/Waveform_from_Tektronix_3052.png "Example")
 
     usage: Read data from a Tektronix TDS 3052 oscilloscpe via an RS-232 port
            [-h] [-p PORT] [-r BAUDRATE] [-u] [--nosave] [-o FILE] [-n NEVENTS]
