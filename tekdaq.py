@@ -247,11 +247,11 @@ xmax=5*float(hsamp)*closestPowerInv
 #vertical max and min of graph
 ybase=0.0
 if args.wave == '1':
-    ybase=5.*float(vsca1)
+    ybase=4.*float(vsca1)
 elif args.wave == '2':
-    ybase=5.*float(vsca2)
+    ybase=4.*float(vsca2)
 elif args.wave == 'a':
-    ybase=max(5.*float(vsca2),5.*float(vsca1))
+    ybase=max(4.*float(vsca2),4.*float(vsca1))
 
 ymin=-1.*ybase
 ymax=ybase
@@ -359,18 +359,22 @@ def animate(i):
     #set acquire state
     tds.write("ACQ:STATE ON")
     timestamp[0] = time.time()
+
+    goodData=True
   
     #get curves
     for ch in range(2):
         if getdata[ch]:
             tds.write("DATA:SOURCE CH"+str(ch+1))
-            
-            curve = tds.query_binary_values('CURVE?', datatype='H', is_big_endian=True)
 
-            tds.write("*ESR?")
-            done=tds.read().strip()
-            if int(done) != 0 and not i==0: 
-                print(done)
+            try:
+                curve = tds.query_binary_values('CURVE?', datatype='H', is_big_endian=True)
+            except ValueError:
+                print("There was a problem reading an event.")
+                goodData=False
+                lines[ch].set_data(0,0)
+                continue
+
             
             
             #use waveform header to convert ADC counts to volts
@@ -392,11 +396,11 @@ def animate(i):
             lines[ch].set_data(0,0)
 
     
-    if not args.nosave:
+    if not args.nosave and goodData:
         writeEvent(lines)
 
     for k in range(2):
-        if getdata[k]:
+        if getdata[k] and goodData:
             tme,data=lines[k].get_data()
             tme = [float(closestPowerInv)*x for x in tme]
             lines[k].set_data(tme,data)
@@ -419,7 +423,7 @@ plt.xlabel(prefix+tds.read()[1])
 tds.write("WFMPRE:YUNIT?")
 plt.ylabel(tds.read()[1])
 
-major_ticksY = np.arange(ymin, ymax+ymax/5, ymax/5)
+major_ticksY = np.arange(ymin, ymax+ymax/4, ymax/4)
 major_ticksX = np.arange(xmin, xmax+xmax/5, xmax/5)
 ax.set_yticks(major_ticksY)
 ax.set_xticks(major_ticksX)
