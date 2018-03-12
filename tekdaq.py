@@ -291,7 +291,8 @@ def finished():
     tds.write("LOC NONE")    
     tds.close()
 
-    print("Wrote "+str(numEvents)+" events to "+args.output)
+    if not args.nosave:
+        print("Wrote "+str(numEvents)+" events to "+args.output)
     
     exit()
 
