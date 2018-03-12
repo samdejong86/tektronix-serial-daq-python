@@ -59,8 +59,9 @@ you will have to restart for this to take effect.
       -n NEVENTS, --nevents NEVENTS
                             Number of events to record
       -c CH, --trsrc CH     Specify the trigger channel; specify '0' for 'EXT'
-      -t TRIG_LEVEL, --trlevel TRIG_LEVEL
-                            Specify trigger level (in volts).
+      -t POLARITY TRIGLEVEL, --trlevel POLARITY TRIGLEVEL
+                            Specify trigger polarity (NEG or POS) and level (in
+                            volts).
       -s TRIG_SLOPE, --trslope TRIG_SLOPE
                             Specify the trigger edge slope - FALL or RISE.
       --vsca1 VSCALE        Specify vertical scale (in volts) for channel 1.
