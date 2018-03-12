@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.ticker import FormatStrFormatter
 import numpy as np
-
 import math
 import time
 import sys
@@ -77,7 +76,11 @@ if args.unlock:
 
 
 # Make the scope identify itself.
-print(tds.query('*IDN?'))
+try:
+    print(tds.query('*IDN?'))
+except UnicodeDecodeError:
+    print("There was an error communicating with the device. Please try again")
+    exit()
 
 
 vsca1=args.vsca1
@@ -364,6 +367,12 @@ def animate(i):
             
             curve = tds.query_binary_values('CURVE?', datatype='H', is_big_endian=True)
 
+            tds.write("*ESR?")
+            done=tds.read().strip()
+            if int(done) != 0 and not i==0: 
+                print(done)
+            
+            
             #use waveform header to convert ADC counts to volts
             waveform = (
                 (float(Preambles[ch]["xzero"]) + i*float(Preambles[ch]["x_incr"]), ((curve[i] - float(Preambles[ch]["y_offset"])) * float(Preambles[ch]["y_scale"])) + float(Preambles[ch]["y_zero"]))
@@ -396,10 +405,10 @@ def animate(i):
 
 
 
-
 # call the animator.  blit=True means only re-draw the parts that have changed.
 anim = animation.FuncAnimation(fig, animate, init_func=init,
                                frames=20, interval=20, blit=True)
+
 
 
 
