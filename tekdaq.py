@@ -4,6 +4,7 @@ import visa
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.ticker import FormatStrFormatter
+import numpy as np
 
 import math
 import time
@@ -50,8 +51,8 @@ parser.add_argument('--imped2', help='Specify impedance for channel 2.',  defaul
 parser.add_argument('-b','--hsamp', help='Specify the horizontal scale (in seconds); note that this can effect the sample rate.', default='20.E-9', required=False)
 parser.add_argument('-pt','--pretrigger', help='Specify the amount of pretrigger (percent).', default='20', required=False)
 
-
 args = parser.parse_args()
+
 
 if not rootExists:
     print("Root not found. Data will be saved as text files")
@@ -82,6 +83,8 @@ print(tds.query('*IDN?'))
 vsca1=args.vsca1
 vsca2=args.vsca2
 hsamp=args.hsamp
+
+#Program the Scope 
 
 getdata = [False, False]
 
@@ -123,9 +126,7 @@ else: #if '-k' used, get the horizontal and vertical scale
     tds.write("CH2:SCALE?")
     vsca2=tds.read()
 
-    
-
-    
+   
 tds.write("HOR:RECORDLENGTH "+args.length)    
 
 
@@ -136,10 +137,11 @@ if args.wave == 'a' or args.wave =='2':
     getdata[1]=True
 
 
+
+#get the waveform preablmes
+    
 Preambles = []
-
 tds.write("HEADER OFF");
-
 WFM_PREAMBLE_FIELDS = (
             ('bytes_per_sample', int,),
             ('bits_per_sample', int,),
@@ -162,7 +164,6 @@ WFM_PREAMBLE_FIELD_NAMES = tuple(f[0] for f in WFM_PREAMBLE_FIELDS)
 WFM_PREAMBLE_FIELD_CONVERTERS = tuple(f[1] for f in WFM_PREAMBLE_FIELDS)
 
 
-#get the waveform preablmes
 for ch in range(2):
     if getdata[ch]:
         tds.write("DATA:SOURCE CH"+str(ch+1))
@@ -183,16 +184,17 @@ for ch in range(2):
 
 tds.write("WFMPRE:NR_PT?")
 point_count = int(tds.read())
-          
-        
+                  
 #lock the 'scope, set to single seq mode
 tds.write("LOC All")
 tds.write("ACQ:STOPA SEQ")
 
 
+# Setup root file
 vectors=[]
 f=""
 t=""
+timestamp=np.zeros(1, dtype=float)
 xinc = np.zeros(1, dtype=float)
 
 #setup root saving
@@ -212,13 +214,32 @@ if rootExists and not args.nosave:
     #assign xincrement branch
     t.Branch('xinc', xinc, 'xinc/D')
     xinc[0]=float(Preambles[0]['x_incr'])
+
+    #assign timestamp branch
+    t.Branch('time', timestamp, 'time/D')
     
 
 
+#find the closest power of 10 to the horizontal scale
+nearest10 = math.ceil(math.log10(float(hsamp)))
+
+#find closest to 0, -3, -6, or -9 (s, ms, us, ns) - for scaling waveform view
+takeClosest = lambda num,collection:min(collection,key=lambda x:abs(x-num))
+closestLog=takeClosest(nearest10, [0,-3,-6,-9])
+
+prefix=''
+if closestLog == -3:
+    prefix='m'
+elif closestLog == -6:
+    prefix='$\mu$'
+elif closestLog == -9:
+    prefix='n'
+
+closestPowerInv=1/math.pow(10,closestLog)
 
 #horizontal max and min of graph
-xmin=-5*float(hsamp)
-xmax=5*float(hsamp)
+xmin=-5*float(hsamp)*closestPowerInv
+xmax=5*float(hsamp)*closestPowerInv
 
 #vertical max and min of graph
 ybase=0.0
@@ -236,6 +257,7 @@ ymax=ybase
     
 # First set up the figure, the axis, and the plot element we want to animate
 fig = plt.figure()
+fig.canvas.set_window_title('Waveform from Tektronix 3052') 
 ax = plt.axes(xlim=(xmin, xmax), ylim=(ymin, ymax))
 lines = []
 lobj = ax.plot([], [], 'r-', animated=True)[0]
@@ -333,7 +355,7 @@ def animate(i):
 
     #set acquire state
     tds.write("ACQ:STATE ON")
-
+    timestamp[0] = time.time()
   
     #get curves
     for ch in range(2):
@@ -341,7 +363,7 @@ def animate(i):
             tds.write("DATA:SOURCE CH"+str(ch+1))
             
             curve = tds.query_binary_values('CURVE?', datatype='H', is_big_endian=True)
-                
+
             #use waveform header to convert ADC counts to volts
             waveform = (
                 (float(Preambles[ch]["xzero"]) + i*float(Preambles[ch]["x_incr"]), ((curve[i] - float(Preambles[ch]["y_offset"])) * float(Preambles[ch]["y_scale"])) + float(Preambles[ch]["y_zero"]))
@@ -363,6 +385,13 @@ def animate(i):
     
     if not args.nosave:
         writeEvent(lines)
+
+    for k in range(2):
+        tme,data=lines[k].get_data()
+        tme = [float(closestPowerInv)*x for x in tme]
+        lines[k].set_data(tme,data)
+        
+        
     return lines
 
 
@@ -373,11 +402,19 @@ anim = animation.FuncAnimation(fig, animate, init_func=init,
                                frames=20, interval=20, blit=True)
 
 
+
 tds.write("WFMPRE:XUNIT?")
-plt.xlabel(tds.read()[1])
+plt.xlabel(prefix+tds.read()[1])
 
 tds.write("WFMPRE:YUNIT?")
 plt.ylabel(tds.read()[1])
+
+major_ticksY = np.arange(ymin, ymax+ymax/5, ymax/5)
+major_ticksX = np.arange(xmin, xmax+xmax/5, xmax/5)
+ax.set_yticks(major_ticksY)
+ax.set_xticks(major_ticksX)
+
+plt.grid(color='grey', linestyle='dotted', linewidth=1)
 
 plt.show()
 
