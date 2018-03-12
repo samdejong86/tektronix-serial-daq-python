@@ -40,7 +40,9 @@ parser.add_argument('-k','--keep', help='Keep existing scope settings, ignoring 
 parser.add_argument('-w','--wave', help='Record waveform data for channel CH; specify \'a\' for all channels.', default='a', required=False, metavar='CH', choices=['a','1','2'])
 parser.add_argument('-l','--length', help='Specify the waveform recordlength; not independent of the time base. Allowed values are: 5.E2 and 1.E4', default='5.E2', required=False, choices=['5.E2', '1.E4'], metavar="LENGTH")
 parser.add_argument('-c', '--trsrc', help='Specify the trigger channel; specify \'0\' for \'EXT\'', default='1', required=False, metavar='CH', choices=['0','1','2'])
-parser.add_argument('-t','--trlevel', help='Specify trigger level (in volts).', default='1E0', required=False, metavar='TRIG_LEVEL')
+
+parser.add_argument('-t','--trlevel', help='Specify trigger polarity (NEG or POS) and level (in volts).', nargs=2, default=['NEG','1E0'], required=False, metavar=("POLARITY", "TRIGLEVEL"))
+
 parser.add_argument('-s', '--trslope', help='Specify the trigger edge slope - FALL or RISE.', default='RISE', required=False, metavar='TRIG_SLOPE', choices=['RISE','FALL'])
 parser.add_argument('--vsca1', help='Specify vertical scale (in volts) for channel 1.', default= '200E-3', required=False, metavar='VSCALE')
 parser.add_argument('--vsca2', help='Specify vertical scale (in volts) for channel 2.', default= '200E-3', required=False, metavar='VSCALE')
@@ -52,6 +54,10 @@ parser.add_argument('-b','--hsamp', help='Specify the horizontal scale (in secon
 parser.add_argument('-pt','--pretrigger', help='Specify the amount of pretrigger (percent).', default='20', required=False)
 
 args = parser.parse_args()
+
+if not args.trlevel[0] == "NEG" and not args.trlevel[0] == "POS":
+    parser.error("Trigger level must NEG or POS")
+
 
 
 if not rootExists:
@@ -74,24 +80,16 @@ splitFilename=args.output.split(".")
 if args.unlock:
     tds.write("LOC NONE")
     exit()
-    
 
-tds.write("*PSC")
-#print(tds.read())
-
-numTries=0
+#ask device for ID. keep trying until it works.
 while True:
     try:
         tds.write("*IDN?")
         sleep(0.1)
         print(tds.read())
-        numTries=numTries+1
         break
     except:
         temp = tds.read_raw()
-               
-        for tries in range(numTries+1):
-            temp = tds.read_raw()
         pass
 
 
@@ -120,9 +118,17 @@ if not args.keep:
         tds.write("CH2:COUPL "+args.coupl2)
         tds.write("CH2:IMPED "+args.imped2)
         tds.write("SEL:CH2 ON")
-
         
-    tds.write("TRIGGER:A:LEVEL -1.E-2")
+    
+    trigLevel=args.trlevel[1]
+    if args.trlevel[0] == 'NEG':
+        trigLevel="-"+args.trlevel[1]
+    elif args.trlevel[0] == 'POS':
+        trigLevel=args.trlevel[1]
+
+    
+    tds.write("TRIGGER:A:LEVEL "+str(trigLevel))
+    
     if args.trsrc == '0':
         tds.write("TRIG:A:EDGE:SOU EXT")
     else:    
@@ -197,7 +203,11 @@ for ch in range(2):
         tds.write("WDMPRE:PT_Fmt Y")
 
         tds.write("WFMPRE?")
-        wfm = tds.read().split(';')
+        temp=tds.read()        
+        while "TEKTRONIX" in temp:
+            temp=tds.read()
+            
+        wfm = temp.split(';')
         pre =dict(zip(
             WFM_PREAMBLE_FIELD_NAMES,
             [WFM_PREAMBLE_FIELD_CONVERTERS[i](wfm[i]) for i in range(len(wfm))]
