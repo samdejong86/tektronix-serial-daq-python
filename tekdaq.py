@@ -8,6 +8,7 @@ import numpy as np
 import math
 import time
 import sys
+from time import sleep
 
 #import scopeMethods
 
@@ -64,6 +65,7 @@ tds = rm.open_resource('ASRL'+args.port+'::INSTR')
 
 #set the baud rate
 tds.baud_rate = int(args.baudrate)
+tds.encoding = 'utf-8'
 
 splitFilename=args.output.split(".")
 
@@ -74,15 +76,29 @@ if args.unlock:
     exit()
     
 
+tds.write("*PSC")
+#print(tds.read())
 
-# Make the scope identify itself.
-try:
-    print(tds.query('*IDN?'))
-except UnicodeDecodeError:
-    print("There was an error communicating with the device. Please try again")
-    exit()
+numTries=0
+while True:
+    try:
+        tds.write("*IDN?")
+        sleep(0.1)
+        print(tds.read())
+        numTries=numTries+1
+        break
+    except:
+        temp = tds.read_raw()
+               
+        for tries in range(numTries+1):
+            temp = tds.read_raw()
+        pass
 
 
+    print("Error communicating with device. Retrying...")
+
+
+    
 vsca1=args.vsca1
 vsca2=args.vsca2
 hsamp=args.hsamp
@@ -122,6 +138,10 @@ else: #if '-k' used, get the horizontal and vertical scale
     
     tds.write("HORIZONTAL?")
     temp=tds.read()
+    while "TEKTRONIX" in temp:
+        temp=tds.read()
+
+    
     hsamp=temp.split(';')[2]
 
     tds.write("CH1:SCALE?")
@@ -372,6 +392,7 @@ def animate(i):
                 curve = tds.query_binary_values('CURVE?', datatype='H', is_big_endian=True)
             except ValueError:
                 print("There was a problem reading an event.")
+                tds.read_raw()
                 goodData=False
                 lines[ch].set_data(0,0)
                 continue
