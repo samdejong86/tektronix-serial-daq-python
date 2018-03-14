@@ -462,9 +462,15 @@ ax.set_xticks(major_ticksX)
 
 plt.grid(color='grey', linestyle='dotted', linewidth=1)
 
+
+legends=[]
+for i in range(2):
+    legends.append(mpatches.Patch(color=plotcols[i],label='Ch '+str(i+1)));
+
+plt.legend(handles=legends)
+
 plt.show()
 
 finished()
-
 
 
